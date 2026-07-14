@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { fetchFeedback, fetchQuestions } from '@/api'
+import { useAuth } from '@/lib/AuthProvider'
+import { createInterview, saveInterviewQuestion } from '@/lib/interviews'
 import SetupForm from '@/components/SetupForm'
 import QuestionCard from '@/components/QuestionCard'
 import FeedbackCard from '@/components/FeedbackCard'
@@ -9,11 +11,13 @@ import { Card, CardContent, CardTitle } from '@/components/ui/card'
 type Stage = 'setup' | 'question' | 'feedback' | 'done'
 
 function HomePage() {
+  const { user } = useAuth()
   const [stage, setStage] = useState<Stage>('setup')
   const [questions, setQuestions] = useState<string[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [score, setScore] = useState<number | null>(null)
+  const [interviewId, setInterviewId] = useState<string | null>(null)
 
   const [loadingQuestions, setLoadingQuestions] = useState(false)
   const [loadingFeedback, setLoadingFeedback] = useState(false)
@@ -28,6 +32,15 @@ function HomePage() {
       setQuestions(res.questions)
       setCurrentIndex(0)
       setStage('question')
+
+      if (user) {
+        try {
+          const id = await createInterview(user.id, role, difficulty)
+          setInterviewId(id)
+        } catch (err) {
+          console.error('Failed to save interview to history:', err)
+        }
+      }
     } catch (err) {
       setQuestionsError(err instanceof Error ? err.message : 'Failed to generate questions.')
     } finally {
@@ -43,6 +56,22 @@ function HomePage() {
       setFeedback(res.feedback)
       setScore(res.score)
       setStage('feedback')
+
+      if (user && interviewId) {
+        try {
+          await saveInterviewQuestion({
+            interviewId,
+            userId: user.id,
+            questionOrder: currentIndex + 1,
+            question: questions[currentIndex],
+            answer,
+            feedback: res.feedback,
+            score: res.score,
+          })
+        } catch (err) {
+          console.error('Failed to save question to history:', err)
+        }
+      }
     } catch (err) {
       setFeedbackError(err instanceof Error ? err.message : 'Failed to get feedback.')
     } finally {
@@ -66,6 +95,7 @@ function HomePage() {
     setCurrentIndex(0)
     setFeedback(null)
     setScore(null)
+    setInterviewId(null)
     setQuestionsError(null)
     setFeedbackError(null)
     setStage('setup')

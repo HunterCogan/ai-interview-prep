@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown'
+import { scoreBadgeVariant } from '@/lib/score'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,12 +17,6 @@ interface FeedbackCardProps {
   score: number
   isLastQuestion: boolean
   onNext: () => void
-}
-
-function scoreBadgeVariant(score: number) {
-  if (score >= 8) return 'default'
-  if (score >= 5) return 'secondary'
-  return 'destructive'
 }
 
 function FeedbackCard({ question, feedback, score, isLastQuestion, onNext }: FeedbackCardProps) {
