@@ -1,12 +1,17 @@
 import json
 import os
+from typing import cast
 
 from anthropic import Anthropic
 from anthropic.types import Message, TextBlock, ToolParam, ToolUseBlock
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.types import ExceptionHandler
 
 load_dotenv()
 
@@ -17,9 +22,15 @@ FEEDBACK_MODEL = "claude-sonnet-5"
 
 app = FastAPI(title="AI Interview Prep API")
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, cast(ExceptionHandler, _rate_limit_exceeded_handler))
+
+_extra_origins = [o.strip() for o in os.environ.get("FRONTEND_ORIGIN", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", *_extra_origins],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -106,7 +117,8 @@ def _extract_json_array(raw: str) -> list[str]:
 
 
 @app.post("/api/questions", response_model=QuestionsResponse)
-def generate_questions(req: QuestionsRequest) -> QuestionsResponse:
+@limiter.limit("10/minute;50/hour")
+def generate_questions(request: Request, req: QuestionsRequest) -> QuestionsResponse:
     prompt = (
         f"Generate {req.count} interview questions for a {req.difficulty} "
         f"{req.role} candidate. Return ONLY a JSON array of question strings, "
@@ -126,7 +138,8 @@ def generate_questions(req: QuestionsRequest) -> QuestionsResponse:
 
 
 @app.post("/api/feedback", response_model=FeedbackResponse)
-def generate_feedback(req: FeedbackRequest) -> FeedbackResponse:
+@limiter.limit("10/minute;50/hour")
+def generate_feedback(request: Request, req: FeedbackRequest) -> FeedbackResponse:
     prompt = (
         f"Interview question: {req.question}\n\n"
         f"Candidate's answer: {req.answer}\n\n"
