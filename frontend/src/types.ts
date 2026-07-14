@@ -15,4 +15,5 @@ export interface FeedbackRequest {
 
 export interface FeedbackResponse {
   feedback: string
+  score: number
 }

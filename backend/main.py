@@ -2,7 +2,7 @@ import json
 import os
 
 from anthropic import Anthropic
-from anthropic.types import Message, TextBlock
+from anthropic.types import Message, TextBlock, ToolParam, ToolUseBlock
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,6 +42,32 @@ class FeedbackRequest(BaseModel):
 
 class FeedbackResponse(BaseModel):
     feedback: str
+    score: int
+
+
+FEEDBACK_TOOL: ToolParam = {
+    "name": "provide_feedback",
+    "description": "Provide structured feedback and a numeric score for an interview answer.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "feedback": {
+                "type": "string",
+                "description": (
+                    "Constructive, specific feedback on the answer: what was strong, "
+                    "what was weak, and how to improve it. Written in markdown. Keep it concise."
+                ),
+            },
+            "score": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "description": "A score from 1 (poor) to 10 (excellent) rating the quality of the answer.",
+            },
+        },
+        "required": ["feedback", "score"],
+    },
+}
 
 
 def _first_text_block(message: Message) -> str:
@@ -49,6 +75,21 @@ def _first_text_block(message: Message) -> str:
     if not isinstance(block, TextBlock):
         raise HTTPException(status_code=502, detail=f"Unexpected response block type from model: {type(block).__name__}")
     return block.text
+
+
+def _first_tool_use_block(message: Message) -> ToolUseBlock:
+    for block in message.content:
+        if isinstance(block, ToolUseBlock):
+            return block
+    raise HTTPException(status_code=502, detail="Model did not return a tool call")
+
+
+def _feedback_tool_result(tool_use: ToolUseBlock) -> tuple[str, int]:
+    feedback = tool_use.input["feedback"]
+    score = tool_use.input["score"]
+    if not isinstance(feedback, str) or not isinstance(score, int):
+        raise HTTPException(status_code=502, detail="Model returned malformed tool input")
+    return feedback, score
 
 
 def _extract_json_array(raw: str) -> list[str]:
@@ -89,12 +130,15 @@ def generate_feedback(req: FeedbackRequest) -> FeedbackResponse:
     prompt = (
         f"Interview question: {req.question}\n\n"
         f"Candidate's answer: {req.answer}\n\n"
-        f"Give constructive, specific feedback on this answer: what was strong, "
-        f"what was weak, and how to improve it. Keep it concise."
+        f"Evaluate this answer and call the provide_feedback tool with your feedback and score."
     )
     message = client.messages.create(
         model=FEEDBACK_MODEL,
         max_tokens=1024,
+        tools=[FEEDBACK_TOOL],
+        tool_choice={"type": "tool", "name": "provide_feedback"},
         messages=[{"role": "user", "content": prompt}],
     )
-    return FeedbackResponse(feedback=_first_text_block(message))
+    tool_use = _first_tool_use_block(message)
+    feedback, score = _feedback_tool_result(tool_use)
+    return FeedbackResponse(feedback=feedback, score=score)
