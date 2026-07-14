@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { GoogleIcon, GitHubIcon } from '@/components/icons/BrandIcons'
 
 interface AuthDialogProps {
   open: boolean
@@ -123,9 +124,11 @@ function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
 
         <div className="flex flex-col gap-2">
           <Button variant="outline" onClick={() => signInWithOAuth('google')}>
+            <GoogleIcon />
             Continue with Google
           </Button>
           <Button variant="outline" onClick={() => signInWithOAuth('github')}>
+            <GitHubIcon />
             Continue with GitHub
           </Button>
         </div>
