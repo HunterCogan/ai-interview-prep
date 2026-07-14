@@ -1,121 +1,107 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { fetchFeedback, fetchQuestions } from './api'
+import SetupForm from './components/SetupForm'
+import QuestionCard from './components/QuestionCard'
+import FeedbackCard from './components/FeedbackCard'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardTitle } from '@/components/ui/card'
+
+type Stage = 'setup' | 'question' | 'feedback' | 'done'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [stage, setStage] = useState<Stage>('setup')
+  const [questions, setQuestions] = useState<string[]>([])
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [feedback, setFeedback] = useState<string | null>(null)
+
+  const [loadingQuestions, setLoadingQuestions] = useState(false)
+  const [loadingFeedback, setLoadingFeedback] = useState(false)
+  const [questionsError, setQuestionsError] = useState<string | null>(null)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
+
+  async function handleStart(role: string, difficulty: string) {
+    setLoadingQuestions(true)
+    setQuestionsError(null)
+    try {
+      const res = await fetchQuestions({ role, difficulty })
+      setQuestions(res.questions)
+      setCurrentIndex(0)
+      setStage('question')
+    } catch (err) {
+      setQuestionsError(err instanceof Error ? err.message : 'Failed to generate questions.')
+    } finally {
+      setLoadingQuestions(false)
+    }
+  }
+
+  async function handleSubmitAnswer(answer: string) {
+    setLoadingFeedback(true)
+    setFeedbackError(null)
+    try {
+      const res = await fetchFeedback({ question: questions[currentIndex], answer })
+      setFeedback(res.feedback)
+      setStage('feedback')
+    } catch (err) {
+      setFeedbackError(err instanceof Error ? err.message : 'Failed to get feedback.')
+    } finally {
+      setLoadingFeedback(false)
+    }
+  }
+
+  function handleNext() {
+    setFeedback(null)
+    if (currentIndex + 1 < questions.length) {
+      setCurrentIndex((i) => i + 1)
+      setStage('question')
+    } else {
+      setStage('done')
+    }
+  }
+
+  function handleRestart() {
+    setQuestions([])
+    setCurrentIndex(0)
+    setFeedback(null)
+    setQuestionsError(null)
+    setFeedbackError(null)
+    setStage('setup')
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <main className="flex grow flex-col items-center justify-center gap-6 p-8">
+      {stage === 'setup' && (
+        <SetupForm loading={loadingQuestions} error={questionsError} onSubmit={handleStart} />
+      )}
 
-      <div className="ticks"></div>
+      {stage === 'question' && (
+        <QuestionCard
+          question={questions[currentIndex]}
+          questionNumber={currentIndex + 1}
+          totalQuestions={questions.length}
+          loading={loadingFeedback}
+          error={feedbackError}
+          onSubmitAnswer={handleSubmitAnswer}
+        />
+      )}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      {stage === 'feedback' && feedback && (
+        <FeedbackCard
+          question={questions[currentIndex]}
+          feedback={feedback}
+          isLastQuestion={currentIndex + 1 >= questions.length}
+          onNext={handleNext}
+        />
+      )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {stage === 'done' && (
+        <Card className="w-full max-w-lg">
+          <CardContent className="flex flex-col items-center gap-4 text-center">
+            <CardTitle className="text-lg">Nice work — you've finished this set.</CardTitle>
+            <Button onClick={handleRestart}>Start over</Button>
+          </CardContent>
+        </Card>
+      )}
+    </main>
   )
 }
 
