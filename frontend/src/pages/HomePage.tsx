@@ -17,6 +17,8 @@ function HomePage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [score, setScore] = useState<number | null>(null)
+  const [role, setRole] = useState('')
+  const [difficulty, setDifficulty] = useState('')
   const [interviewId, setInterviewId] = useState<string | null>(null)
 
   const [loadingQuestions, setLoadingQuestions] = useState(false)
@@ -31,16 +33,9 @@ function HomePage() {
       const res = await fetchQuestions({ role, difficulty })
       setQuestions(res.questions)
       setCurrentIndex(0)
+      setRole(role)
+      setDifficulty(difficulty)
       setStage('question')
-
-      if (user) {
-        try {
-          const id = await createInterview(user.id, role, difficulty)
-          setInterviewId(id)
-        } catch (err) {
-          console.error('Failed to save interview to history:', err)
-        }
-      }
     } catch (err) {
       setQuestionsError(err instanceof Error ? err.message : 'Failed to generate questions.')
     } finally {
@@ -57,10 +52,12 @@ function HomePage() {
       setScore(res.score)
       setStage('feedback')
 
-      if (user && interviewId) {
+      if (user) {
         try {
+          const id = interviewId ?? (await createInterview(user.id, role, difficulty))
+          if (!interviewId) setInterviewId(id)
           await saveInterviewQuestion({
-            interviewId,
+            interviewId: id,
             userId: user.id,
             questionOrder: currentIndex + 1,
             question: questions[currentIndex],

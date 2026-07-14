@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
-import { getInterviewDetail } from '@/lib/interviews'
+import { Trash2 } from 'lucide-react'
+import { deleteInterview, getInterviewDetail } from '@/lib/interviews'
 import type { InterviewDetail } from '@/lib/interviews'
 import { scoreBadgeVariant } from '@/lib/score'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardAction,
@@ -13,6 +15,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -24,9 +36,26 @@ function formatDate(iso: string) {
 
 function InterviewDetailPage() {
   const { interviewId } = useParams<{ interviewId: string }>()
+  const navigate = useNavigate()
   const [interview, setInterview] = useState<InterviewDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  async function handleConfirmDelete() {
+    if (!interviewId) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteInterview(interviewId)
+      navigate('/history')
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete.')
+      setDeleting(false)
+    }
+  }
 
   useEffect(() => {
     if (!interviewId) return
@@ -60,15 +89,52 @@ function InterviewDetailPage() {
 
   return (
     <main className="flex grow flex-col items-center gap-6 p-8">
-      <div className="flex w-full max-w-lg flex-col gap-1">
-        <Link to="/history" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← Back to history
-        </Link>
-        <h1 className="font-heading text-2xl font-medium capitalize">
-          {interview.role} — {interview.difficulty}
-        </h1>
-        <p className="text-sm text-muted-foreground">{formatDate(interview.createdAt)}</p>
+      <div className="flex w-full max-w-lg items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <Link to="/history" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+            ← Back to history
+          </Link>
+          <h1 className="font-heading text-2xl font-medium capitalize">
+            {interview.role} — {interview.difficulty}
+          </h1>
+          <p className="text-sm text-muted-foreground">{formatDate(interview.createdAt)}</p>
+        </div>
+
+        <Button
+          size="icon-sm"
+          variant="outline"
+          onClick={() => setConfirmOpen(true)}
+          aria-label="Delete interview"
+        >
+          <Trash2 />
+        </Button>
       </div>
+
+      {deleteError && (
+        <p className="text-sm text-destructive">{deleteError}</p>
+      )}
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this interview?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes "{interview.role} — {interview.difficulty}" and all of its
+              questions, answers, and feedback. This can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleting}
+              onClick={handleConfirmDelete}
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="flex w-full max-w-lg flex-col gap-4">
         {interview.questions.map((q) => (
