@@ -131,6 +131,10 @@ function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
             <GitHubIcon />
             Continue with GitHub
           </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            You'll briefly see a "supabase.co" address during sign-in. That's this app's
+            authentication provider, not a third-party site.
+          </p>
         </div>
       </DialogContent>
     </Dialog>
