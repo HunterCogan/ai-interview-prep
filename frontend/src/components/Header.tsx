@@ -23,7 +23,6 @@ function Header() {
           History
         </NavLink>
       </div>
-
       {user ? (
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{user.email}</span>
